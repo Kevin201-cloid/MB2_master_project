@@ -79,17 +79,17 @@ myfiles = my_file_1 %>%
   dplyr::select(acq_date,longitude, latitude, frp)
 
 # This process could be repeated if user has a Near-Real Time fire detection dataset
-fileName_2 <- paste0(DirAF, "fire_nrt_M6_181358") #This is for near real time data
+fileName_2 <- paste0(DirAF, "fire_nrt_M6_181358") # This is for near real time data
 temp2 = read.table("fire_nrt_M6_181358.csv", sep = ",", header = TRUE)
 my_file_2 = temp2 %>%
   subset(confidence > 50)
 
 my_file_2 = myfiles2 %>%
   mutate(outlier = remove_outliers(myfiles2$frp),
-        #NA_Check = is.na(outlier)) %>%
+        NA_Check = is.na(outlier)) %>%
   subset(NA_Check == 'FALSE') %>%
   mutate_at(vars(longitude, latitude), funs(round(., 1))) %>%
-  dplyr::select(acq_date,longitude, latitude, frp))
+  dplyr::select(acq_date,longitude, latitude, frp)
 
 # optional
 rm(my_file_1,tem_file_1,filename_1)
@@ -100,20 +100,114 @@ rm(my_file_1,tem_file_1,filename_1)
 myfiles$acq_date <- as.Date.character(myfiles$acq_date)
 
 # Monthly aggregate
+myfiles %>%
+  filter(acq_date >= "2003/01/01") # recommended by the Metatadata for reliability
 
 accum_mon <- myfiles %>%
-  filter(acq_date <= "2003/01/01")%>%
-  mutate(acq_month = as.Date(as.yearmon(acq_date, "%m/%Y"))) %>%
-  select(acq_month) %>%
-  group_by(acq_month) %>%
-  summarise(occurrences = n()) %>%
-  mutate(cum_sum = cumsum(occurrences))%>%
-  ggplot(aes(acq_month, cum_sum))+
-  geom_point()+
-  geom_line()+
-  ggtitle("monthly occurence")+
-  theme_graph()+
-  xlab("acq_date")
-ylab("frp")
+  mutate(acq_month = as.Date(as.yearmon(acq_date, "%m/%Y")))%>%
+  select(acq_month)%>%
+  group_by(acq_month)%>%
+  summarise(occurences = n())
 
+# yearly aggregation
+
+accum_year <- myfiles %>%
+  mutate(acq_year = as.character(year(acq_date))) %>%
+  select(acq_year, acq_date) %>%
+  group_by(acq_year)%>%
+  summarise(occurences = n()) # yearly sum accumulation
+
+# season aggregation
+
+fire_season <- accum_mon %>%
+  mutate(month_fire = month(acq_month),
+                       season = case_when(
+                        month_fire %in% c(1,2,3,4,5) ~ "Dry Season",
+                        month_fire %in% c(6,7,8,9) ~ "Rainy Season",
+                        month_fire %in% c(10,11,12 ) ~ "Small Dry Season")
+                    )%>%
+                      group_by(season, acq_month) %>%
+                      summarise(n_fires = sum(occurences), date_fire = mean(month_fire))%>%
+           arrange(date_fire)
+
+# plotting
+
+ggplot(fire_season, aes(x = acq_month, y = n_fires/ 100, color = factor(season)))+
+  geom_col(stat = "count") +
+  geom_line()+
+  ggtitle("Number of fire / Season ") +
+  theme(legend.title = element_text(colour = "chocolate", size = 16, face = "bold")) +
+  scale_color_discrete(name = "Fire Season")+
+  xlab("Date") +
+  ylab("fire_occurence(thousand)")
+
+# overall trend
+
+fire_season$fire_trend <- rollmean(fire_season$n_fires, k = 10, fill = "NA")
+is.na(fire_season$fire_trend)
+fire_season$date_fire <-
+
+# plotting overall trend
+
+  ggplot(fire_season, aes(n_fires))+
+  geom_count()+
+  geom_line(aes(y= fire_trend), color = "red")+
+  ggtitle("fire by season")+
+  xlab("Date")+
+  ylab("wildfire")+
+  theme_graph()
+
+# seasonality
+fire_season <- fire_season %>%
+  mutate(fire_detrend = n_fires / fire_trend)
+
+# calculate average seasonality
+
+fire_season <- fire_season %>%
+  group_by(season) %>%
+  mutate(fire_seasonality=mean(fire_detrend, na.rm = T))
+
+# plot overall trend added
+
+ggplot(fire_season, aes(date_fire, n_fires)) +
+  geom_point()+
+  geom_line(aes(y =fire_trend), color ="red")
+
+####### plotting #######
+
+ggplot(fire_season, aes(acq_month, n_fires, color = factor(season)))+
+  geom_col()+
+  ggtitle("Fire Occurence Per Season")+
+  theme_economist()+
+  scale_color_economist()
+
+
+# monthly aggregation
+
+gg_Month <- accum_mon %>%
+  ggplot(aes(x = acq_month, y = occurences )) +
+  geom_area(fill="#69b3a2", alpha = 0.5) +
+  geom_line(color="#69b3a2") +
+  scale_x_date(date_breaks = "24 months", date_labels = "%b/%y") + # it breaks the x axis into month/year
+  labs(y ="Cumulative quantity of fires (thousands)",
+       x = "Month/Year", caption="Innovation_Lab") +
+  theme_graph ()
+
+gg_Month
+
+# yearly aggregation
+
+gg_year <- accum_year %>%
+  ggplot(aes(x = acq_year, y = occurences)) +
+  ylim(150, 440)+
+  geom_area( fill = "#69b3a2", alpha=0.5, stat = "identity", position = "stack",
+             inherit.aes = TRUE, na.rm = TRUE) +
+  geom_line(color = "#69b3a2")+
+  stat_smooth(method = NULL)+
+  labs(y = "fire_count",
+       x = "Date", caption = "Inno-Lab")+
+    theme_graph()
+
+
+gg_year
 
