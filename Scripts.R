@@ -175,12 +175,17 @@ ggplot(fire_season, aes(date_fire, n_fires)) +
 
 ####### plotting #######
 
-ggplot(fire_season, aes(acq_month, n_fires, color = factor(season)))+
-  geom_col()+
+
   ggtitle("Fire Occurence Per Season")+
   theme_economist()+
   scale_color_economist()
 
+ggplot(fire_season, aes(acq_month, n_fires/ 100))+
+  geom_line(color = "steelblue", size  = 1)+
+  geom_point(color = "steelblue")+
+  labs(title = "Fire Occurrrence per season",
+  y = "Number of fire", x = "")+
+  facet_wrap(~season)
 
 # monthly aggregation
 
