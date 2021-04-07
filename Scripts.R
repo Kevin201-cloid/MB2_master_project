@@ -1,5 +1,5 @@
 ##############################################
-## Fire intensity and occurence analysis #####
+## Fire intensity and occurrence analysis #####
 ######### Author Kevin Yomi ##################
 ######### University of Wuerzburg ############
 
@@ -57,3 +57,63 @@ theme_graph <- function(...) {
         panel.border = element_blank()
   )
 }
+
+# Section 2 ===================================================================
+
+# Setting our framework
+
+dir_data <- "E:/Migrawave_project/data/Nigeria_borno_active_fire/subset_borno_state/" # user dependent
+setwd(dir = dir_data)
+filename_1 <- paste0(dir_data, "subset_borno_csv")
+tem_file_1 <- read.table("subset_borno_csv.csv", sep = ",", header = TRUE)
+my_file_1 <- tem_file_1 %>%
+  setNames(tolower(names(.)))%>%
+  subset(type == 0 & confidence > 50) # FIRMS technical requirement is confidence > 50
+
+# outlier removal
+myfiles = my_file_1 %>%
+  mutate(outlier = remove_outliers(my_file_1$frp),
+         NA_Check = is.na(outlier))%>%
+  subset(NA_Check == 'FALSE') %>%
+  mutate_at(vars(longitude, latitude), funs(round(., 1))) %>%
+  dplyr::select(acq_date,longitude, latitude, frp)
+
+# This process could be repeated if user has a Near-Real Time fire detection dataset
+fileName_2 <- paste0(DirAF, "fire_nrt_M6_181358") #This is for near real time data
+temp2 = read.table("fire_nrt_M6_181358.csv", sep = ",", header = TRUE)
+my_file_2 = temp2 %>%
+  subset(confidence > 50)
+
+my_file_2 = myfiles2 %>%
+  mutate(outlier = remove_outliers(myfiles2$frp),
+        #NA_Check = is.na(outlier)) %>%
+  subset(NA_Check == 'FALSE') %>%
+  mutate_at(vars(longitude, latitude), funs(round(., 1))) %>%
+  dplyr::select(acq_date,longitude, latitude, frp))
+
+# optional
+rm(my_file_1,tem_file_1,filename_1)
+
+# Section 3 ===========================================================================
+
+# statistics analysis
+myfiles$acq_date <- as.Date.character(myfiles$acq_date)
+
+# Monthly aggregate
+
+accum_mon <- myfiles %>%
+  filter(acq_date <= "2003/01/01")%>%
+  mutate(acq_month = as.Date(as.yearmon(acq_date, "%m/%Y"))) %>%
+  select(acq_month) %>%
+  group_by(acq_month) %>%
+  summarise(occurrences = n()) %>%
+  mutate(cum_sum = cumsum(occurrences))%>%
+  ggplot(aes(acq_month, cum_sum))+
+  geom_point()+
+  geom_line()+
+  ggtitle("monthly occurence")+
+  theme_graph()+
+  xlab("acq_date")
+ylab("frp")
+
+
