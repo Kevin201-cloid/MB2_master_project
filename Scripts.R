@@ -270,4 +270,5 @@ ggfrp <- ggplot()+
 
 ggfrp
 
+dev.off()
 
